@@ -1,14 +1,24 @@
 # module4_tests
 
-必须通过：
+Build and test targets have been updated for the new source layout.
 
-- `make`
-- `make test`
+The gateway binary is built from:
 
-覆盖点：
-- gateway pin 校验
-- classic 非对称
-- classic 对称
-- pqc KEM 变种
-- file 接口
-- mixed sequence
+- `src/server/gateway/`
+- `src/server/service/`
+- `src/server/driver/`
+- `src/common/`
+
+The client binary is built from:
+
+- `src/client/api/`
+- `src/client/core/`
+- `src/client/transport/`
+- `src/common/`
+
+Run:
+
+```bash
+make
+make test
+```

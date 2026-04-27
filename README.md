@@ -12,10 +12,17 @@ C11 + Unix Domain Socket 统一密码机网关原型。
   - `swsds-pqc`
 - adapter 接口完整覆盖 7 大类函数族
 - 支持串行混合调用 `sequence`
+- `src/` 已按客户端层和服务端层重新分层，客户端进一步拆分为 API、封装、通信三层
 
 ## 目录
 
-- `src/`：源码
+- `src/client/api/`：客户端接口层，提供命令行入口和对外 API 边界
+- `src/client/core/`：客户端封装层，负责组织请求读取、调用通信层、输出响应
+- `src/client/transport/`：客户端通信层，负责 Unix Domain Socket 收发
+- `src/server/gateway/`：服务端网关层，包含入口、server、protocol、queue
+- `src/server/service/`：服务端服务层，包含 config、resource、scheduler、translator
+- `src/server/driver/`：服务端驱动层，包含 driver_dispatch、driver_classic、driver_pqc、skf_adapter
+- `src/common/`：客户端和服务端共用代码，例如日志
 - `include/`：头文件
 - `configs/devices.conf`：设备与能力声明
 - `configs/gateway.conf`：网关 PIN
@@ -77,4 +84,4 @@ domain:action:algorithm
 
 ## 下一步
 
-把 `driver_classic.c` / `driver_pqc.c` 中的 mock 行为替换为真实 SDK 调用。
+把 `src/server/driver/driver_classic.c` / `src/server/driver/driver_pqc.c` 中的 mock 行为替换为真实 SDK 调用。

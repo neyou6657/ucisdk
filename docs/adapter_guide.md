@@ -562,3 +562,20 @@ adapter 只有满足下面这些，才算接入完成。
 - 下层每个设备一个 adapter
 - 能力通过配置声明
 - 差异全部收敛到 adapter 内部
+
+---
+
+## 当前源码位置
+
+本项目源码已经按客户端层和服务端层拆分。adapter 相关代码统一放在服务端驱动层：
+
+- `src/server/driver/driver_dispatch.c`
+- `src/server/driver/driver_classic.c`
+- `src/server/driver/driver_pqc.c`
+- `src/server/driver/skf_adapter.c`
+
+统一 API 到后端调用名的翻译逻辑位于：
+
+- `src/server/service/translator.c`
+
+新增 adapter 时，建议在 `src/server/driver/` 下新增 `driver_vendor_x.c`，并在 `src/server/service/translator.c` 中补充映射。

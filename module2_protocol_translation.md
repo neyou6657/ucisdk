@@ -1,10 +1,17 @@
 # module2_protocol_translation
 
-协议层负责把 JSON 解析到 `request_t`。
-翻译层负责把统一 API 映射成后端函数名。
+Protocol parsing now belongs to `src/server/gateway/protocol.c`.
 
-能力声明格式：
+Translation from unified API to backend call names belongs to `src/server/service/translator.c`.
 
-```text
-domain:action:algorithm
-```
+Client request flow:
+
+- `src/client/api/client_api.c`
+- `src/client/core/client_core.c`
+- `src/client/transport/client_transport.c`
+
+Server request flow:
+
+- `src/server/gateway/server.c`
+- `src/server/gateway/protocol.c`
+- `src/server/service/translator.c`
