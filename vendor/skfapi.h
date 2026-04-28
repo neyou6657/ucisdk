@@ -38,14 +38,21 @@ typedef HANDLE HCONTAINER;
 #define SGD_SHA256 0x00000004U
 #define SGD_SM2_1 0x00020100U
 #define SGD_SM2_3 0x00020400U
+#define SGD_RSA 0x00010000U
+#define SGD_RSA_SIGN 0x00010100U
+#define SGD_RSA_ENC 0x00010200U
 #define SGD_SM4_ECB 0x00000401U
 #define SGD_SM4_CBC 0x00000402U
+#define SGD_SMS4_ECB 0x00002001U
+#define SGD_SMS4_CBC 0x00002002U
 
 #define MAX_IV_LEN 32
 #define MAX_RSA_MODULUS_LEN 256
 #define MAX_RSA_EXPONENT_LEN 4
 #define ECC_MAX_XCOORDINATE_BITS_LEN 512
 #define ECC_MAX_YCOORDINATE_BITS_LEN 512
+#define ECC_MAX_MODULUS_BITS_LEN 512
+#define ECC_MAX_CIPHER_LEN 256
 
 typedef struct Struct_Version {
     BYTE major;
@@ -71,16 +78,49 @@ typedef struct Struct_DEVINFO {
     BYTE Reserved[64];
 } DEVINFO, *PDEVINFO;
 
+typedef struct Struct_RSAPUBLICKEYBLOB {
+    ULONG AlgID;
+    ULONG BitLen;
+    BYTE Modulus[MAX_RSA_MODULUS_LEN];
+    BYTE PublicExponent[MAX_RSA_EXPONENT_LEN];
+} RSAPUBLICKEYBLOB, *PRSAPUBLICKEYBLOB;
+
+typedef struct Struct_RSAPRIVATEKEYBLOB {
+    ULONG AlgID;
+    ULONG BitLen;
+    BYTE Modulus[MAX_RSA_MODULUS_LEN];
+    BYTE PublicExponent[MAX_RSA_EXPONENT_LEN];
+    BYTE PrivateExponent[MAX_RSA_MODULUS_LEN];
+    BYTE Prime1[MAX_RSA_MODULUS_LEN / 2];
+    BYTE Prime2[MAX_RSA_MODULUS_LEN / 2];
+    BYTE Prime1Exponent[MAX_RSA_MODULUS_LEN / 2];
+    BYTE Prime2Exponent[MAX_RSA_MODULUS_LEN / 2];
+    BYTE Coefficient[MAX_RSA_MODULUS_LEN / 2];
+} RSAPRIVATEKEYBLOB, *PRSAPRIVATEKEYBLOB;
+
 typedef struct Struct_ECCPUBLICKEYBLOB {
     ULONG BitLen;
     BYTE XCoordinate[ECC_MAX_XCOORDINATE_BITS_LEN / 8];
     BYTE YCoordinate[ECC_MAX_YCOORDINATE_BITS_LEN / 8];
 } ECCPUBLICKEYBLOB, *PECCPUBLICKEYBLOB;
 
+typedef struct Struct_ECCPRIVATEKEYBLOB {
+    ULONG BitLen;
+    BYTE PrivateKey[ECC_MAX_MODULUS_BITS_LEN / 8];
+} ECCPRIVATEKEYBLOB, *PECCPRIVATEKEYBLOB;
+
 typedef struct Struct_ECCSIGNATUREBLOB {
     BYTE r[ECC_MAX_XCOORDINATE_BITS_LEN / 8];
     BYTE s[ECC_MAX_YCOORDINATE_BITS_LEN / 8];
 } ECCSIGNATUREBLOB, *PECCSIGNATUREBLOB;
+
+typedef struct Struct_ECCCIPHERBLOB {
+    BYTE XCoordinate[ECC_MAX_XCOORDINATE_BITS_LEN / 8];
+    BYTE YCoordinate[ECC_MAX_YCOORDINATE_BITS_LEN / 8];
+    BYTE HASH[32];
+    ULONG CipherLen;
+    BYTE Cipher[ECC_MAX_CIPHER_LEN];
+} ECCCIPHERBLOB, *PECCCIPHERBLOB;
 
 typedef struct Struct_BLOCKCIPHERPARAM {
     BYTE IV[MAX_IV_LEN];
@@ -89,14 +129,22 @@ typedef struct Struct_BLOCKCIPHERPARAM {
     ULONG FeedBitLen;
 } BLOCKCIPHERPARAM, *PBLOCKCIPHERPARAM;
 
-typedef ULONG (*SKF_EnumDev_Fn)(BOOL bPresent, LPSTR szNameList, ULONG *pulSize);
-typedef ULONG (*SKF_ConnectDev_Fn)(LPSTR szName, DEVHANDLE *phDev);
-typedef ULONG (*SKF_DisConnectDev_Fn)(DEVHANDLE hDev);
-typedef ULONG (*SKF_GetDevInfo_Fn)(DEVHANDLE hDev, DEVINFO *pDevInfo);
-typedef ULONG (*SKF_GenRandom_Fn)(DEVHANDLE hDev, BYTE *pbRandom, ULONG ulRandomLen);
-typedef ULONG (*SKF_DigestInit_Fn)(DEVHANDLE hDev, ULONG ulAlgID, ECCPUBLICKEYBLOB *pPubKey, BYTE *pucID, ULONG ulIDLen, HANDLE *phHash);
-typedef ULONG (*SKF_Digest_Fn)(HANDLE hHash, BYTE *pbData, ULONG ulDataLen, BYTE *pbHashData, ULONG *pulHashLen);
-typedef ULONG (*SKF_CloseHandle_Fn)(HANDLE hHandle);
+typedef struct Struct_FILEATTRIBUTE {
+    CHAR FileName[32];
+    ULONG FileSize;
+    ULONG ReadRights;
+    ULONG WriteRights;
+} FILEATTRIBUTE, *PFILEATTRIBUTE;
+
+#define KYBER_PUB_MAX 2048U
+#define KYBER_PRI_MAX 4096U
+#define DILITHIUM_PUB_MAX 3072U
+#define DILITHIUM_PRI_MAX 5120U
+
+typedef struct KyberPublicKey_st { ULONG pk_len; BYTE pk[KYBER_PUB_MAX]; } KyberPublicKey;
+typedef struct KyberPrivateKey_st { ULONG sk_len; BYTE sk[KYBER_PRI_MAX]; } KyberPrivateKey;
+typedef struct DilithiumPublicKey_st { ULONG pk_len; BYTE pk[DILITHIUM_PUB_MAX]; } DilithiumPublicKey;
+typedef struct DilithiumPrivateKey_st { ULONG sk_len; BYTE sk[DILITHIUM_PRI_MAX]; } DilithiumPrivateKey;
 
 #ifdef __cplusplus
 }
