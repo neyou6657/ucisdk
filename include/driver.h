@@ -23,6 +23,7 @@ typedef struct driver_ops {
 
 driver_ops_t classic_driver_ops(void);
 driver_ops_t pqc_driver_ops(void);
+driver_ops_t skf_driver_ops(void);
 int driver_dispatch(const driver_ops_t *ops,
                     api_domain_t domain,
                     const device_resource_t *device,

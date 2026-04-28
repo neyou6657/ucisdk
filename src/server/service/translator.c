@@ -51,6 +51,10 @@ static const translation_rule_t g_rules[] = {
     {"swsds-classic", DEV_CLASSIC, DOMAIN_FILE,   ACTION_WRITE_FILE,                "auto",       "SDF_WriteFile"},
     {"swsds-classic", DEV_CLASSIC, DOMAIN_FILE,   ACTION_DELETE_FILE,               "auto",       "SDF_DeleteFile"},
 
+    {"gm3000-skf",    DEV_CLASSIC, DOMAIN_DEVICE, ACTION_GET_DEVICE_INFO,           "auto",       "SKF_GetDevInfo"},
+    {"gm3000-skf",    DEV_CLASSIC, DOMAIN_DEVICE, ACTION_GENERATE_RANDOM,           "auto",       "SKF_GenRandom"},
+    {"gm3000-skf",    DEV_CLASSIC, DOMAIN_HASH,   ACTION_HASH,                      "sm3",        "SKF_Digest"},
+
     {"swsds-pqc",     DEV_PQC,     DOMAIN_DEVICE, ACTION_GET_DEVICE_INFO,           "auto",       "SDF_GetDeviceInfo"},
     {"swsds-pqc",     DEV_PQC,     DOMAIN_DEVICE, ACTION_GENERATE_RANDOM,           "auto",       "SDF_GenerateRandom"},
     {"swsds-pqc",     DEV_PQC,     DOMAIN_KEY,    ACTION_GET_PRIVATE_KEY_ACCESS,    "auto",       "SDF_GetPrivateKeyAccessRight"},

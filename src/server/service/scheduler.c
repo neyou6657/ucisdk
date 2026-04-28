@@ -122,7 +122,11 @@ static int execute_single_step(scheduler_t *scheduler,
         return -1;
     }
 
-    ops = (device->type == DEV_CLASSIC) ? classic_driver_ops() : pqc_driver_ops();
+    if (strcmp(device->backend_profile, "gm3000-skf") == 0) {
+        ops = skf_driver_ops();
+    } else {
+        ops = (device->type == DEV_CLASSIC) ? classic_driver_ops() : pqc_driver_ops();
+    }
     if (driver_dispatch(&ops, domain, device, &translated, resp, errbuf, errbuf_sz) != 0) {
         registry_release(scheduler->registry, device->device_id);
         return -1;
