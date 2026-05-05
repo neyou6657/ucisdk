@@ -101,13 +101,14 @@ static int execute_single_step(scheduler_t *scheduler,
     size_t order_len = 0;
     translated_call_t translated;
     driver_ops_t ops;
+    const char *device_hint = (explicit_type == DEV_UNKNOWN) ? req->device_hint : "";
 
     build_order(req->preference, explicit_type, order, &order_len);
     if (registry_acquire_candidate(scheduler->registry,
                                    domain,
                                    action,
                                    algorithm,
-                                   req->device_hint,
+                                   device_hint,
                                    req->preference,
                                    order,
                                    order_len,
