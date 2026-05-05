@@ -42,12 +42,30 @@ static int read_line(int fd, char *buf, size_t buf_sz) {
     return (int)i;
 }
 
+static int write_all(int fd, const char *buf, size_t len) {
+    size_t sent = 0U;
+    while (sent < len) {
+        ssize_t n = write(fd, buf + sent, len - sent);
+        if (n < 0) {
+            if (errno == EINTR) {
+                continue;
+            }
+            return -1;
+        }
+        if (n == 0) {
+            return -1;
+        }
+        sent += (size_t)n;
+    }
+    return 0;
+}
+
 static void write_response_and_close(int fd, const response_t *resp) {
     char json[MAX_RESPONSE_LEN + 512];
     int n = response_to_json(resp, json, sizeof(json));
     if (n > 0) {
-        (void)write(fd, json, (size_t)n);
-        (void)write(fd, "\n", 1U);
+        (void)write_all(fd, json, (size_t)n);
+        (void)write_all(fd, "\n", 1U);
     }
     close(fd);
 }
