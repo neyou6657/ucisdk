@@ -282,15 +282,73 @@ int parse_request_json(const char *json_line, request_t *out, char *errbuf, size
     return 0;
 }
 
+static int append_json_escaped(char *buf, size_t buf_sz, size_t *pos, const char *value) {
+    const unsigned char *p = (const unsigned char *)value;
+    while (*p != '\0') {
+        int n;
+        if (*p == '"' || *p == '\\') {
+            n = snprintf(buf + *pos, buf_sz - *pos, "\\%c", *p);
+        } else if (*p == '\n') {
+            n = snprintf(buf + *pos, buf_sz - *pos, "\\n");
+        } else if (*p == '\r') {
+            n = snprintf(buf + *pos, buf_sz - *pos, "\\r");
+        } else if (*p == '\t') {
+            n = snprintf(buf + *pos, buf_sz - *pos, "\\t");
+        } else if (*p < 0x20U) {
+            n = snprintf(buf + *pos, buf_sz - *pos, "\\u%04x", (unsigned int)*p);
+        } else {
+            n = snprintf(buf + *pos, buf_sz - *pos, "%c", *p);
+        }
+        if (n < 0 || (size_t)n >= buf_sz - *pos) {
+            return -1;
+        }
+        *pos += (size_t)n;
+        p++;
+    }
+    return 0;
+}
+
+static int append_json_field(char *buf, size_t buf_sz, size_t *pos, const char *name, const char *value, int comma) {
+    int n = snprintf(buf + *pos, buf_sz - *pos, "%s\"%s\":\"", comma ? "," : "", name);
+    if (n < 0 || (size_t)n >= buf_sz - *pos) {
+        return -1;
+    }
+    *pos += (size_t)n;
+    if (append_json_escaped(buf, buf_sz, pos, value) != 0) {
+        return -1;
+    }
+    n = snprintf(buf + *pos, buf_sz - *pos, "\"");
+    if (n < 0 || (size_t)n >= buf_sz - *pos) {
+        return -1;
+    }
+    *pos += (size_t)n;
+    return 0;
+}
+
 int response_to_json(const response_t *resp, char *buf, size_t buf_sz) {
-    return snprintf(buf,
-                    buf_sz,
-                    "{\"request_id\":\"%s\",\"status\":%d,\"selected_device\":\"%s\",\"backend_name\":\"%s\",\"backend_call\":\"%s\",\"trace\":\"%s\",\"result\":\"%s\"}",
-                    resp->request_id,
-                    (int)resp->status,
-                    resp->selected_device,
-                    resp->backend_name,
-                    resp->backend_call,
-                    resp->trace,
-                    resp->result);
+    size_t pos = 0U;
+    int n;
+
+    if (buf == NULL || buf_sz == 0U || resp == NULL) {
+        return -1;
+    }
+
+    n = snprintf(buf + pos, buf_sz - pos, "{");
+    if (n < 0 || (size_t)n >= buf_sz - pos) return -1;
+    pos += (size_t)n;
+
+    if (append_json_field(buf, buf_sz, &pos, "request_id", resp->request_id, 0) != 0) return -1;
+    n = snprintf(buf + pos, buf_sz - pos, ",\"status\":%d", (int)resp->status);
+    if (n < 0 || (size_t)n >= buf_sz - pos) return -1;
+    pos += (size_t)n;
+    if (append_json_field(buf, buf_sz, &pos, "selected_device", resp->selected_device, 1) != 0) return -1;
+    if (append_json_field(buf, buf_sz, &pos, "backend_name", resp->backend_name, 1) != 0) return -1;
+    if (append_json_field(buf, buf_sz, &pos, "backend_call", resp->backend_call, 1) != 0) return -1;
+    if (append_json_field(buf, buf_sz, &pos, "trace", resp->trace, 1) != 0) return -1;
+    if (append_json_field(buf, buf_sz, &pos, "result", resp->result, 1) != 0) return -1;
+
+    n = snprintf(buf + pos, buf_sz - pos, "}");
+    if (n < 0 || (size_t)n >= buf_sz - pos) return -1;
+    pos += (size_t)n;
+    return (int)pos;
 }
