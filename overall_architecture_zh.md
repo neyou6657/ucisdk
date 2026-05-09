@@ -9,7 +9,7 @@
 1. 对外暴露统一 API。
 2. 网关只校验自己的 `gateway pin`。
 3. 传统/现代密码机与抗量子密码机通过不同 adapter 接入。
-4. adapter 接口完整覆盖 7 大类函数族：
+4. adapter 接口保留 7 大类 handler；CCM 兼容层只做上层路由覆盖，不代表所有底层 SAF 语义已真实实现：
    - 设备管理类函数
    - 密钥管理类函数
    - 非对称密码运算函数
@@ -263,3 +263,15 @@ Adapter 是真正隔离厂商差异的地方。
 - 真实底层密码机调用
 
 这些将在下一阶段替换到 `src/server/driver/` 内部。
+
+## CCM 上层统一接口
+
+在现有网关统一 API 之上新增 `CCM_` 前缀上层接口，位置为：
+
+- `include/ccm.h`：公开算法 ID、混合/PQC 扩展参数、证书参数、消息参数和四类统一函数声明
+- `src/client/api/ccm_api.c`：把完整 C API 参数归一化为既有 JSON 请求
+
+接口设计遵循：对称与非对称分离、能用 `uiAlgID` 表达的算法差异一律不拆函数名、Dilithium/Kyber/ML-KEM/Hybrid 通过算法 ID 与扩展参数接入、保留 `void *pExParams` 适配特殊算法参数。
+
+这层不是换皮函数名；它是上层完整参数面到既有 JSON API 的适配层。底层真实密码语义仍由现有 JSON API、scheduler、translator、adapter 和设备 SDK 保证。
+

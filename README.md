@@ -10,7 +10,7 @@ C11 + Unix Domain Socket 统一密码机网关原型。
 - 通过两个 adapter 表达两台设备：
   - `swsds-classic`
   - `swsds-pqc`
-- adapter 接口完整覆盖 7 大类函数族
+- adapter 接口保留 7 大类 handler；CCM 兼容层只做上层路由覆盖，不代表所有底层 SAF 语义已真实实现
 - 支持串行混合调用 `sequence`
 - `src/` 已按客户端层和服务端层重新分层，客户端进一步拆分为 API、封装、通信三层
 
@@ -41,6 +41,16 @@ make test
 ```bash
 ./bin/crypto_gateway ./configs/devices.conf ./configs/gateway.conf /tmp/crypto_gateway.sock
 ```
+
+## CCM 上层接口
+
+新增 `include/ccm.h` / `src/client/api/ccm_api.c`，提供 `CCM_` 前缀的四类上层统一接口。它不是简单把 SAF 函数改名，而是按完整参数面设计：会话句柄、`uiAlgID`、内部索引、外部密钥、IV、输入输出缓冲区、长度指针、`pExParams` 都保留在 C API 中。
+
+密码运算类不再按 `RsaSign`、`Sm2Sign`、`SM9Sign` 等算法名称拆函数，而是按动作分离：`CCM_Sign`、`CCM_Verify`、`CCM_SymEncrypt`、`CCM_AsymEncrypt`、`CCM_KeyEncapsulate`、`CCM_HybridSign` 等。RSA、SM2、SM4、SM3、Dilithium、Kyber/ML-KEM 等通过 `uiAlgID` 自动路由到既有 JSON API 的 `algorithm` 字段。
+
+证书类和消息类也收敛为统一入口：证书类型、查询类型、消息类型通过参数表达；消息编码/解码通过 `uiMessageType + uiAlgID` 表达 PKCS7/CMS/SM2 类操作。
+
+当前实现层对接已有 JSON API；如果旧 JSON API 的对应 `domain/action/algorithm` 已经正确工作，CCM 层会把完整 C 参数归一化后路由过去。
 
 ## 请求示例
 

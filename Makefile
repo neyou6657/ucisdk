@@ -31,6 +31,7 @@ SRC = \
 
 TEST_SRC = \
 	tests/test_runner.c \
+	src/client/api/ccm_api.c \
 	src/server/gateway/protocol.c \
 	src/server/gateway/queue.c \
 	src/server/service/config.c \
@@ -45,6 +46,7 @@ TEST_SRC = \
 
 CLIENT_SRC = \
 	src/client/api/client_api.c \
+	src/client/api/ccm_api.c \
 	src/client/core/client_core.c \
 	src/client/transport/client_transport.c \
 	src/common/log.c
