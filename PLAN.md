@@ -17,4 +17,6 @@
 - [ ] 加入真实错误码映射
 - [ ] 加入真实会话与设备生命周期管理
 
-- [x] 增加 CCM_ 四类上层统一接口，保留完整 C 参数面；可用算法 ID 表达的差异全部参数化为统一 algorithm 字段
+- [x] 增加 CCM_ 四类上层统一接口：环境类、密码运算类、密钥管理类、数字签名类；统一使用 Unif_AlgParams / Unif_KeyRef / Unif_Buffer 表达算法、密钥和数据
+
+- [x] 上层接口不再暴露证书类、消息类、USBKey 类或厂商设备类，后端仍保持 domain + action + algorithm 路由

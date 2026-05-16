@@ -162,18 +162,28 @@ static int test_bad_pin(void) {
     return 0;
 }
 
+static void make_unif_inputs(Unif_AlgParams *alg, Unif_KeyRef *key, Unif_Buffer *in, Unif_Buffer *out, unsigned char *data, unsigned int data_len, unsigned char *buf, unsigned int buf_len) {
+    memset(alg, 0, sizeof(*alg));
+    alg->uiAlgID = CCM_ALG_SM2;
+    alg->uiMode = CCM_MODE_NONE;
+    alg->uiPadding = CCM_PADDING_NONE;
+    alg->uiHashAlgID = CCM_ALG_SM3;
+    alg->uiSecurityLevel = 0U;
+
+    memset(key, 0, sizeof(*key));
+    key->uiAlgID = CCM_ALG_SM2;
+    key->uiUsage = CCM_KEY_USAGE_SIGN;
+    key->uiSource = CCM_KEY_SOURCE_INTERNAL_INDEX;
+    key->uiKeyIndex = 1U;
+
+    in->pucData = data;
+    in->uiDataLen = data_len;
+    out->pucData = buf;
+    out->uiDataLen = buf_len;
+}
+
 static int test_ccm_api_builds_unified_requests_with_algorithm_id(void) {
     char name[64];
-    unsigned char out[1024];
-    unsigned int out_len = sizeof(out);
-    unsigned char data[] = "hello";
-    unsigned char sig[256];
-    unsigned int sig_len = sizeof(sig);
-    unsigned char iv[16] = {0};
-    unsigned char cipher[256];
-    unsigned int cipher_len = sizeof(cipher);
-    unsigned char plain[256];
-    unsigned int plain_len = sizeof(plain);
 
     ASSERT_EQ_INT(CCM_AlgorithmName(CCM_ALG_SM2, name, sizeof(name)), 0);
     ASSERT_TRUE(strcmp(name, "sm2") == 0);
@@ -183,86 +193,97 @@ static int test_ccm_api_builds_unified_requests_with_algorithm_id(void) {
     ASSERT_TRUE(strcmp(name, "mlkem768") == 0);
     ASSERT_EQ_INT(CCM_AlgorithmName(CCM_ALG_DILITHIUM3, name, sizeof(name)), 0);
     ASSERT_TRUE(strcmp(name, "dilithium3") == 0);
-
-    ASSERT_EQ_INT(CCM_GenerateKeyPair(NULL, CCM_ALG_DILITHIUM3, 3U, 7U, out, sig), 0);
-    ASSERT_EQ_INT(CCM_Sign(NULL, CCM_ALG_RSA_SIGN, 1U, NULL, CCM_ALG_RSA_SIGN, data, 5U, sig, &sig_len, NULL), 0);
-    ASSERT_EQ_INT(CCM_Verify(NULL, CCM_ALG_DILITHIUM3, 2U, NULL, 0U, data, 5U, sig, sig_len, NULL), 0);
-    ASSERT_EQ_INT(CCM_SymEncrypt(NULL, CCM_ALG_SM4_CBC, 1U, NULL, iv, data, 5U, cipher, &cipher_len), 0);
-    ASSERT_EQ_INT(CCM_SymDecrypt(NULL, CCM_ALG_SM4_CBC, 1U, NULL, iv, cipher, cipher_len, plain, &plain_len), 0);
-    ASSERT_EQ_INT(CCM_AsymEncrypt(NULL, CCM_ALG_SM2_ENC, 1U, NULL, data, 5U, cipher, &cipher_len), 0);
-    ASSERT_EQ_INT(CCM_AsymDecrypt(NULL, CCM_ALG_SM2_ENC, 1U, NULL, cipher, cipher_len, plain, &plain_len), 0);
-    ASSERT_EQ_INT(CCM_KeyEncapsulate(NULL, CCM_ALG_MLKEM768, 3U, NULL, 3U, cipher, &cipher_len, out, &out_len), 0);
-    ASSERT_EQ_INT(CCM_KeyDecapsulate(NULL, CCM_ALG_MLKEM768, 3U, NULL, 3U, cipher, cipher_len, out, &out_len), 0);
-    ASSERT_EQ_INT(CCM_HashInit(NULL, CCM_ALG_SM3, NULL), 0);
-    ASSERT_EQ_INT(CCM_HashUpdate(NULL, data, 5U), 0);
-    ASSERT_EQ_INT(CCM_HashFinal(NULL, out, &out_len), 0);
-    ASSERT_EQ_INT(CCM_Mac(NULL, CCM_ALG_SM4_MAC, 1U, NULL, iv, data, 5U, out, &out_len), 0);
     return 0;
 }
 
-static int test_ccm_four_function_families_have_full_unified_entrypoints(void) {
-    unsigned char buf[2048];
-    unsigned int len = sizeof(buf);
-    unsigned char data[] = "abc";
-    unsigned char iv[16] = {0};
-    unsigned int state = 0U;
+static int test_ccm_four_category_structured_api_entrypoints(void) {
+    unsigned char data_bytes[] = "abc";
+    unsigned char out_bytes[2048];
+    unsigned char iv_bytes[16] = {0};
+    Unif_AlgParams alg;
+    Unif_KeyRef key;
+    Unif_KeyRef second_key;
+    Unif_Buffer in;
+    Unif_Buffer out;
+    Unif_Buffer iv;
     void *ctx = NULL;
-    void *handle = NULL;
-    CCM_HybridExParams hybrid;
-    CCM_DilithiumSignParams dil_sign;
 
-    memset(&hybrid, 0, sizeof(hybrid));
-    hybrid.uiSecondaryAlgID = CCM_ALG_DILITHIUM3;
-    hybrid.uiSecondaryKeyIndex = 9U;
-    memset(&dil_sign, 0, sizeof(dil_sign));
-    dil_sign.uiHashAlgID = CCM_ALG_SM3;
-    dil_sign.uiExpectHashDataLen = 32U;
-    dil_sign.uiRandomizeSigning = 1U;
+    make_unif_inputs(&alg, &key, &in, &out, data_bytes, 3U, out_bytes, sizeof(out_bytes));
+    second_key = key;
+    second_key.uiAlgID = CCM_ALG_MLKEM768;
+    second_key.uiUsage = CCM_KEY_USAGE_KEM;
+    second_key.uiKeyIndex = 2U;
+    iv.pucData = iv_bytes;
+    iv.uiDataLen = sizeof(iv_bytes);
 
     ASSERT_EQ_INT(CCM_Initialize(&ctx), 0);
-    ASSERT_EQ_INT(CCM_GetVersion((char *)buf, &len), 0);
+    ASSERT_EQ_INT(CCM_GetVersion((char *)out.pucData, &out.uiDataLen), 0);
+    out.uiDataLen = sizeof(out_bytes);
     ASSERT_EQ_INT(CCM_Login(ctx, "user", "123456"), 0);
     ASSERT_EQ_INT(CCM_ChangePin(ctx, "123456", "654321"), 0);
     ASSERT_EQ_INT(CCM_Logout(ctx), 0);
     ASSERT_EQ_INT(CCM_Finalize(ctx), 0);
+    ASSERT_EQ_INT(CCM_GetCapability(ctx, &out), 0);
+    ASSERT_EQ_INT(CCM_GenerateRandom(ctx, out.uiDataLen, out.pucData), 0);
 
-    len = sizeof(buf);
-    ASSERT_EQ_INT(CCM_AddCertificate(ctx, 1U, data, 3U), 0);
-    ASSERT_EQ_INT(CCM_GetCertificateCount(ctx, 1U, &state), 0);
-    ASSERT_EQ_INT(CCM_GetCertificate(ctx, 1U, 0U, buf, &len), 0);
-    ASSERT_EQ_INT(CCM_RemoveCertificate(ctx, 1U, 0U), 0);
-    ASSERT_EQ_INT(CCM_AddCrl(ctx, data, 3U), 0);
-    ASSERT_EQ_INT(CCM_VerifyCertificate(ctx, CCM_ALG_SM2, data, 3U, data, 3U, NULL), 0);
-    ASSERT_EQ_INT(CCM_GetCertificateState(ctx, 1U, data, 3U, &state, NULL), 0);
-    ASSERT_EQ_INT(CCM_FetchCertificate(ctx, "ldap://cert", buf, &len), 0);
-    ASSERT_EQ_INT(CCM_FetchCrl(ctx, "ldap://crl", buf, &len), 0);
-    ASSERT_EQ_INT(CCM_GetCertificateInfo(ctx, 1U, data, 3U, buf, &len), 0);
-    ASSERT_EQ_INT(CCM_EnumCertificates(ctx, 1U, buf, &len), 0);
-    ASSERT_EQ_INT(CCM_EnumKeyContainers(ctx, buf, &len), 0);
+    alg.uiAlgID = CCM_ALG_SM3;
+    ASSERT_EQ_INT(CCM_Hash(ctx, &alg, &in, &out), 0);
+    ASSERT_EQ_INT(CCM_HashInit(ctx, &alg), 0);
+    ASSERT_EQ_INT(CCM_HashUpdate(ctx, &in), 0);
+    ASSERT_EQ_INT(CCM_HashFinal(ctx, &out), 0);
+    alg.uiAlgID = CCM_ALG_SM4_MAC;
+    key.uiAlgID = CCM_ALG_SM4_MAC;
+    key.uiUsage = CCM_KEY_USAGE_DERIVE;
+    ASSERT_EQ_INT(CCM_Mac(ctx, &alg, &key, &iv, &in, &out), 0);
+    alg.uiAlgID = CCM_ALG_SM4_CBC;
+    key.uiAlgID = CCM_ALG_SM4_CBC;
+    key.uiUsage = CCM_KEY_USAGE_ENCRYPT;
+    ASSERT_EQ_INT(CCM_SymEncrypt(ctx, &alg, &key, &iv, &in, &out), 0);
+    ASSERT_EQ_INT(CCM_SymDecrypt(ctx, &alg, &key, &iv, &in, &out), 0);
+    alg.uiAlgID = CCM_ALG_SM2;
+    key.uiAlgID = CCM_ALG_SM2;
+    key.uiUsage = CCM_KEY_USAGE_ENCRYPT;
+    ASSERT_EQ_INT(CCM_AsymEncrypt(ctx, &alg, &key, &in, &out), 0);
+    key.uiUsage = CCM_KEY_USAGE_DECRYPT;
+    ASSERT_EQ_INT(CCM_AsymDecrypt(ctx, &alg, &key, &in, &out), 0);
 
-    len = sizeof(buf);
-    ASSERT_EQ_INT(CCM_Base64Encode(data, 3U, buf, &len), 0);
-    len = sizeof(buf);
-    ASSERT_EQ_INT(CCM_Base64Decode(data, 3U, buf, &len), 0);
-    ASSERT_EQ_INT(CCM_GenerateRandom(ctx, sizeof(buf), buf), 0);
-    ASSERT_EQ_INT(CCM_GenerateAgreementData(ctx, 1U, 128U, data, 3U, buf, buf, &handle), 0);
-    ASSERT_EQ_INT(CCM_GenerateKeyAgreement(ctx, 1U, 128U, data, 3U, buf, buf, handle, buf, buf, &handle), 0);
-    ASSERT_EQ_INT(CCM_HybridSign(ctx, CCM_ALG_SM2_SIGN, 1U, &hybrid, data, 3U, buf, &len), 0);
-    ASSERT_EQ_INT(CCM_HybridVerify(ctx, CCM_ALG_SM2_SIGN, 1U, NULL, &hybrid, data, 3U, buf, len), 0);
-    ASSERT_EQ_INT(CCM_HybridAgreement(ctx, CCM_ALG_SM2, CCM_ALG_MLKEM768, 1U, 2U, buf, buf, buf, &handle), 0);
-    ASSERT_EQ_INT(CCM_Sign(ctx, CCM_ALG_DILITHIUM3, 1U, NULL, 0U, data, 3U, buf, &len, &dil_sign), 0);
+    alg.uiAlgID = CCM_ALG_DILITHIUM3;
+    key.uiAlgID = CCM_ALG_DILITHIUM3;
+    key.uiUsage = CCM_KEY_USAGE_SIGN;
+    ASSERT_EQ_INT(CCM_GenerateKeyPair(ctx, &alg, 7U, &key, &second_key), 0);
+    ASSERT_EQ_INT(CCM_GenerateSymKey(ctx, &alg, 8U, &key), 0);
+    ASSERT_EQ_INT(CCM_ImportKey(ctx, &alg, &in, &key), 0);
+    ASSERT_EQ_INT(CCM_ExportPublicKey(ctx, &key, &out), 0);
+    ASSERT_EQ_INT(CCM_GetKeyInfo(ctx, &key, &out), 0);
+    ASSERT_EQ_INT(CCM_DestroyKey(ctx, &key), 0);
+    alg.uiAlgID = CCM_ALG_MLKEM768;
+    second_key.uiAlgID = CCM_ALG_MLKEM768;
+    ASSERT_EQ_INT(CCM_KemEncapsulate(ctx, &alg, &second_key, &out, &out), 0);
+    ASSERT_EQ_INT(CCM_KemDecapsulate(ctx, &alg, &second_key, &in, &out), 0);
+    alg.uiAlgID = CCM_ALG_SM2;
+    ASSERT_EQ_INT(CCM_KeyAgreementInit(ctx, &alg, &key, &in, &out, &second_key), 0);
+    ASSERT_EQ_INT(CCM_KeyAgreementComplete(ctx, &alg, &key, &in, &out, &second_key), 0);
+    alg.uiAlgID = CCM_ALG_MLKEM768;
+    ASSERT_EQ_INT(CCM_HybridKeyAgreement(ctx, &alg, &key, &second_key, &in, &out, &second_key), 0);
 
-    len = sizeof(buf);
-    ASSERT_EQ_INT(CCM_MessageEncode(1U, ctx, CCM_ALG_SM2, 1U, NULL, data, 3U, buf, &len, NULL), 0);
-    ASSERT_EQ_INT(CCM_MessageDecode(1U, ctx, CCM_ALG_SM2, 1U, NULL, buf, len, data, &len, NULL), 0);
-    ASSERT_EQ_INT(CCM_MessageParseSignedData(ctx, buf, len, buf, &len), 0);
-    (void)iv;
+    alg.uiAlgID = CCM_ALG_SM2;
+    key.uiUsage = CCM_KEY_USAGE_SIGN;
+    ASSERT_EQ_INT(CCM_Sign(ctx, &alg, &key, &in, &out), 0);
+    key.uiUsage = CCM_KEY_USAGE_VERIFY;
+    ASSERT_EQ_INT(CCM_Verify(ctx, &alg, &key, &in, &out), 0);
+    ASSERT_EQ_INT(CCM_SignDigest(ctx, &alg, &key, &in, &out), 0);
+    ASSERT_EQ_INT(CCM_VerifyDigest(ctx, &alg, &key, &in, &out), 0);
+    second_key.uiAlgID = CCM_ALG_DILITHIUM3;
+    second_key.uiUsage = CCM_KEY_USAGE_SIGN;
+    ASSERT_EQ_INT(CCM_HybridSign(ctx, &alg, &key, &second_key, &in, &out), 0);
+    second_key.uiUsage = CCM_KEY_USAGE_VERIFY;
+    ASSERT_EQ_INT(CCM_HybridVerify(ctx, &alg, &key, &second_key, &in, &out), 0);
     return 0;
 }
 
 int main(void) {
-    if (test_ccm_api_builds_unified_requests_with_algorithm_id() != 0) return 1;
-    if (test_ccm_four_function_families_have_full_unified_entrypoints() != 0) return 1;
+        if (test_ccm_api_builds_unified_requests_with_algorithm_id() != 0) return 1;
+    if (test_ccm_four_category_structured_api_entrypoints() != 0) return 1;
     if (test_protocol_parse() != 0) return 1;
     if (test_gateway_pin_check() != 0) return 1;
     if (test_classic_asym_sign() != 0) return 1;

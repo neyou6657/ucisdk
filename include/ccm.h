@@ -13,9 +13,17 @@ extern "C" {
 #define CCM_ERR_BUFFER_TOO_SMALL -3
 
 /*
- * CCM 上层统一接口。
- * 约束：能用算法 ID 表达的差异全部用 uiAlgID，不再拆 RsaSign/Sm2Sign/SM9Sign 这类算法名函数。
- * 这些函数负责把完整上层参数归一化到既有 JSON API；底层真实能力由现有 JSON API/adapter 保证。
+ * CCM top-level unified crypto service API.
+ *
+ * Public interface categories:
+ * 1. Environment
+ * 2. Crypto operations: hash, MAC, symmetric encryption, asymmetric encryption
+ * 3. Key management: generation, import/export, KEM, agreement, hybrid agreement
+ * 4. Digital signature: sign, verify, digest sign/verify, hybrid sign/verify
+ *
+ * The top layer normalizes all calls into the existing domain + action + algorithm
+ * request model. Device-specific classes, certificate operations, and message
+ * wrappers are intentionally not part of this public interface.
  */
 
 typedef enum {
@@ -43,11 +51,71 @@ typedef enum {
     CCM_ALG_SM9
 } ccm_algorithm_id_t;
 
+typedef enum {
+    CCM_KEY_USAGE_NONE = 0,
+    CCM_KEY_USAGE_SIGN,
+    CCM_KEY_USAGE_VERIFY,
+    CCM_KEY_USAGE_ENCRYPT,
+    CCM_KEY_USAGE_DECRYPT,
+    CCM_KEY_USAGE_WRAP,
+    CCM_KEY_USAGE_DERIVE,
+    CCM_KEY_USAGE_KEM,
+    CCM_KEY_USAGE_AGREEMENT
+} ccm_key_usage_t;
+
+typedef enum {
+    CCM_KEY_SOURCE_NONE = 0,
+    CCM_KEY_SOURCE_INTERNAL_INDEX,
+    CCM_KEY_SOURCE_SESSION_HANDLE,
+    CCM_KEY_SOURCE_EXTERNAL_KEY
+} ccm_key_source_t;
+
+typedef enum {
+    CCM_MODE_NONE = 0,
+    CCM_MODE_ECB,
+    CCM_MODE_CBC,
+    CCM_MODE_CTR,
+    CCM_MODE_GCM,
+    CCM_MODE_CCM,
+    CCM_MODE_OFB,
+    CCM_MODE_CFB
+} ccm_cipher_mode_t;
+
+typedef enum {
+    CCM_PADDING_NONE = 0,
+    CCM_PADDING_PKCS7,
+    CCM_PADDING_PSS,
+    CCM_PADDING_OAEP
+} ccm_padding_t;
+
 typedef struct {
-    unsigned int uiSecondaryAlgID;
-    unsigned int uiSecondaryKeyIndex;
-    void *pSecondaryExternalKey;
-} CCM_HybridExParams;
+    unsigned int uiAlgID;
+    unsigned int uiUsage;
+    unsigned int uiSource;
+    unsigned int uiKeyIndex;
+    void *hKeyHandle;
+    void *pExternalKey;
+} Unif_KeyRef;
+
+typedef struct {
+    unsigned char *pucData;
+    unsigned int uiDataLen;
+} Unif_Buffer;
+
+typedef struct {
+    unsigned int uiAlgID;
+    unsigned int uiMode;
+    unsigned int uiPadding;
+    unsigned int uiHashAlgID;
+    unsigned int uiSecurityLevel;
+    void *pExParams;
+} Unif_AlgParams;
+
+typedef struct {
+    void *pPublicKey;
+    unsigned char *pucID;
+    unsigned int uiIDLength;
+} CCM_HashExParams;
 
 typedef struct {
     unsigned char *pucContext;
@@ -65,256 +133,143 @@ typedef struct {
     void *pDilithiumPublicKey;
 } CCM_DilithiumVerifyParams;
 
-typedef struct {
-    void *pPublicKey;
-    unsigned char *pucID;
-    unsigned int uiIDLength;
-} CCM_HashExParams;
-
 int CCM_AlgorithmName(unsigned int uiAlgID, char *out, size_t out_sz);
 
-/* 环境类函数 */
+/* 1. Environment */
 int CCM_Initialize(void *phContext);
 int CCM_Finalize(void *hContext);
 int CCM_GetVersion(char *szVersion, unsigned int *puiVersionLen);
 int CCM_Login(void *hSessionHandle, const char *szUserName, const char *szPin);
 int CCM_ChangePin(void *hSessionHandle, const char *szOldPin, const char *szNewPin);
 int CCM_Logout(void *hSessionHandle);
+int CCM_GetCapability(void *hSessionHandle, Unif_Buffer *pCapabilityOut);
+int CCM_GenerateRandom(void *hSessionHandle, unsigned int uiLength, unsigned char *pucRandom);
 
-/* 证书类函数：证书类型、来源、索引等差异放入参数，不再按 Root/CA/LDAP/OCSP 拆散主接口。 */
-int CCM_AddCertificate(void *hSessionHandle,
-                       unsigned int uiCertType,
-                       unsigned char *pucCert,
-                       unsigned int uiCertLen);
-int CCM_GetCertificateCount(void *hSessionHandle,
-                            unsigned int uiCertType,
-                            unsigned int *puiCount);
-int CCM_GetCertificate(void *hSessionHandle,
-                       unsigned int uiCertType,
-                       unsigned int uiCertIndex,
-                       unsigned char *pucCert,
-                       unsigned int *puiCertLen);
-int CCM_RemoveCertificate(void *hSessionHandle,
-                          unsigned int uiCertType,
-                          unsigned int uiCertIndex);
-int CCM_AddCrl(void *hSessionHandle,
-               unsigned char *pucCrl,
-               unsigned int uiCrlLen);
-int CCM_VerifyCertificate(void *hSessionHandle,
-                          unsigned int uiAlgID,
-                          unsigned char *pucCert,
-                          unsigned int uiCertLen,
-                          unsigned char *pucTrustOrCrl,
-                          unsigned int uiTrustOrCrlLen,
-                          void *pExParams);
-int CCM_GetCertificateState(void *hSessionHandle,
-                            unsigned int uiQueryType,
-                            unsigned char *pucCert,
-                            unsigned int uiCertLen,
-                            unsigned int *puiState,
-                            void *pExParams);
-int CCM_FetchCertificate(void *hSessionHandle,
-                         const char *szUri,
-                         unsigned char *pucCert,
-                         unsigned int *puiCertLen);
-int CCM_FetchCrl(void *hSessionHandle,
-                 const char *szUri,
-                 unsigned char *pucCrl,
-                 unsigned int *puiCrlLen);
-int CCM_GetCertificateInfo(void *hSessionHandle,
-                           unsigned int uiInfoType,
-                           unsigned char *pucCert,
-                           unsigned int uiCertLen,
-                           unsigned char *pucInfo,
-                           unsigned int *puiInfoLen);
-int CCM_EnumCertificates(void *hSessionHandle,
-                         unsigned int uiCertType,
-                         unsigned char *pucOut,
-                         unsigned int *puiOutLen);
-int CCM_EnumKeyContainers(void *hSessionHandle,
-                          unsigned char *pucOut,
-                          unsigned int *puiOutLen);
-
-/* 密码运算类函数 */
-int CCM_Base64Encode(unsigned char *pucData,
-                     unsigned int uiDataLen,
-                     unsigned char *pucOut,
-                     unsigned int *puiOutLen);
-int CCM_Base64Decode(unsigned char *pucData,
-                     unsigned int uiDataLen,
-                     unsigned char *pucOut,
-                     unsigned int *puiOutLen);
-int CCM_GenerateRandom(void *hSessionHandle,
-                       unsigned int uiLength,
-                       unsigned char *pucRandom);
-int CCM_GenerateKeyPair(void *hSessionHandle,
-                        unsigned int uiAlgID,
-                        unsigned int uiKeyConfig,
-                        unsigned int uiKeyIndex,
-                        void *pPublicKey,
-                        void *pPrivateKey);
-int CCM_Sign(void *hSessionHandle,
-             unsigned int uiAlgID,
-             unsigned int uiKeyIndex,
-             void *pExternalKey,
-             unsigned int uiKeyUsage,
-             unsigned char *pucData,
-             unsigned int uiDataLen,
-             void *pSignature,
-             unsigned int *puiSigLen,
-             void *pExParams);
-int CCM_Verify(void *hSessionHandle,
-               unsigned int uiAlgID,
-               unsigned int uiKeyIndex,
-               void *pExternalKey,
-               unsigned int uiKeyUsage,
-               unsigned char *pucData,
-               unsigned int uiDataLen,
-               void *pSignature,
-               unsigned int uiSigLen,
-               void *pExParams);
-int CCM_SymEncrypt(void *hSessionHandle,
-                   unsigned int uiAlgID,
-                   unsigned int uiKeyIndex,
-                   void *hKeyHandle,
-                   unsigned char *pucIV,
-                   unsigned char *pucData,
-                   unsigned int uiDataLen,
-                   unsigned char *pucEncData,
-                   unsigned int *puiEncDataLen);
-int CCM_SymDecrypt(void *hSessionHandle,
-                   unsigned int uiAlgID,
-                   unsigned int uiKeyIndex,
-                   void *hKeyHandle,
-                   unsigned char *pucIV,
-                   unsigned char *pucEncData,
-                   unsigned int uiEncDataLen,
-                   unsigned char *pucData,
-                   unsigned int *puiDataLen);
-int CCM_AsymEncrypt(void *hSessionHandle,
-                    unsigned int uiAlgID,
-                    unsigned int uiKeyIndex,
-                    void *pExternalKey,
-                    unsigned char *pucData,
-                    unsigned int uiDataLen,
-                    void *pCipher,
-                    unsigned int *puiCipherLen);
-int CCM_AsymDecrypt(void *hSessionHandle,
-                    unsigned int uiAlgID,
-                    unsigned int uiKeyIndex,
-                    void *pExternalKey,
-                    void *pCipher,
-                    unsigned int uiCipherLen,
-                    unsigned char *pucData,
-                    unsigned int *puiDataLen);
-int CCM_KeyEncapsulate(void *hSessionHandle,
-                       unsigned int uiAlgID,
-                       unsigned int uiKeyIndex,
-                       void *pPublicKey,
-                       unsigned int uiSecurityLevel,
-                       unsigned char *pucCipher,
-                       unsigned int *puiCipherLen,
-                       unsigned char *pucSharedKey,
-                       unsigned int *puiSharedKeyLen);
-int CCM_KeyDecapsulate(void *hSessionHandle,
-                       unsigned int uiAlgID,
-                       unsigned int uiKeyIndex,
-                       void *pPrivateKey,
-                       unsigned int uiSecurityLevel,
-                       unsigned char *pucCipher,
-                       unsigned int uiCipherLen,
-                       unsigned char *pucSharedKey,
-                       unsigned int *puiSharedKeyLen);
-int CCM_GenerateAgreementData(void *hSessionHandle,
-                              unsigned int uiISKIndex,
-                              unsigned int uiKeyBits,
-                              unsigned char *pucSponsorID,
-                              unsigned int uiSponsorIDLen,
-                              void *pSponsorPublicKey,
-                              void *pSponsorTmpPublicKey,
-                              void **phAgreementHandle);
-int CCM_GenerateKeyAgreement(void *hSessionHandle,
-                             unsigned int uiISKIndex,
-                             unsigned int uiKeyBits,
-                             unsigned char *pucPeerID,
-                             unsigned int uiPeerIDLen,
-                             void *pPeerPublicKey,
-                             void *pPeerTmpPublicKey,
-                             void *hAgreementHandle,
-                             void *pSelfPublicKey,
-                             void *pSelfTmpPublicKey,
-                             void **phKeyHandle);
+/* 2. Crypto operations */
+int CCM_Hash(void *hSessionHandle,
+             const Unif_AlgParams *pAlgParams,
+             const Unif_Buffer *pData,
+             Unif_Buffer *pHash);
 int CCM_HashInit(void *hSessionHandle,
-                 unsigned int uiAlgID,
-                 void *pExParams);
+                 const Unif_AlgParams *pAlgParams);
 int CCM_HashUpdate(void *hSessionHandle,
-                   unsigned char *pucData,
-                   unsigned int uiDataLen);
+                   const Unif_Buffer *pData);
 int CCM_HashFinal(void *hSessionHandle,
-                  unsigned char *pucHash,
-                  unsigned int *puiHashLen);
+                  Unif_Buffer *pHash);
 int CCM_Mac(void *hSessionHandle,
-            unsigned int uiAlgID,
-            unsigned int uiKeyIndex,
-            void *hKeyHandle,
-            unsigned char *pucIV,
-            unsigned char *pucData,
-            unsigned int uiDataLen,
-            unsigned char *pucMac,
-            unsigned int *puiMacLen);
-int CCM_HybridSign(void *hSessionHandle,
-                   unsigned int uiMainAlgID,
-                   unsigned int uiMainKeyIndex,
-                   CCM_HybridExParams *pHybridParams,
-                   unsigned char *pucData,
-                   unsigned int uiDataLen,
-                   unsigned char *pucSignature,
-                   unsigned int *puiSigLen);
-int CCM_HybridVerify(void *hSessionHandle,
-                     unsigned int uiMainAlgID,
-                     unsigned int uiMainKeyIndex,
-                     void *pMainExternalKey,
-                     CCM_HybridExParams *pHybridParams,
-                     unsigned char *pucData,
-                     unsigned int uiDataLen,
-                     unsigned char *pucSignature,
-                     unsigned int uiSigLen);
-int CCM_HybridAgreement(void *hSessionHandle,
-                        unsigned int uiAlgID_ECC,
-                        unsigned int uiAlgID_PQC,
-                        unsigned int uiISKIndex,
-                        unsigned int uiKyberKeyIndex,
-                        void *pPeerECCPubKey,
-                        void *pPeerKyberPubKey,
-                        unsigned char *pucKyberCipher,
-                        void **phKeyHandle);
+            const Unif_AlgParams *pAlgParams,
+            const Unif_KeyRef *pKey,
+            const Unif_Buffer *pIV,
+            const Unif_Buffer *pData,
+            Unif_Buffer *pMac);
+int CCM_SymEncrypt(void *hSessionHandle,
+                   const Unif_AlgParams *pAlgParams,
+                   const Unif_KeyRef *pKey,
+                   const Unif_Buffer *pIV,
+                   const Unif_Buffer *pData,
+                   Unif_Buffer *pCipher);
+int CCM_SymDecrypt(void *hSessionHandle,
+                   const Unif_AlgParams *pAlgParams,
+                   const Unif_KeyRef *pKey,
+                   const Unif_Buffer *pIV,
+                   const Unif_Buffer *pCipher,
+                   Unif_Buffer *pData);
+int CCM_AsymEncrypt(void *hSessionHandle,
+                    const Unif_AlgParams *pAlgParams,
+                    const Unif_KeyRef *pPublicKey,
+                    const Unif_Buffer *pData,
+                    Unif_Buffer *pCipher);
+int CCM_AsymDecrypt(void *hSessionHandle,
+                    const Unif_AlgParams *pAlgParams,
+                    const Unif_KeyRef *pPrivateKey,
+                    const Unif_Buffer *pCipher,
+                    Unif_Buffer *pData);
 
-/* 消息类函数：PKCS7/CMS/SM2 消息语义集中到 message_type 与 algorithm_id。 */
-int CCM_MessageEncode(unsigned int uiMessageType,
-                      void *hSessionHandle,
-                      unsigned int uiAlgID,
-                      unsigned int uiKeyIndex,
-                      void *pKeyOrCert,
-                      unsigned char *pucData,
-                      unsigned int uiDataLen,
-                      unsigned char *pucMessage,
-                      unsigned int *puiMessageLen,
-                      void *pExParams);
-int CCM_MessageDecode(unsigned int uiMessageType,
-                      void *hSessionHandle,
-                      unsigned int uiAlgID,
-                      unsigned int uiKeyIndex,
-                      void *pKeyOrCert,
-                      unsigned char *pucMessage,
-                      unsigned int uiMessageLen,
-                      unsigned char *pucData,
-                      unsigned int *puiDataLen,
-                      void *pExParams);
-int CCM_MessageParseSignedData(void *hSessionHandle,
-                               unsigned char *pucSignedData,
-                               unsigned int uiSignedDataLen,
-                               unsigned char *pucInfo,
-                               unsigned int *puiInfoLen);
+/* 3. Key management */
+int CCM_GenerateKeyPair(void *hSessionHandle,
+                        const Unif_AlgParams *pAlgParams,
+                        unsigned int uiKeyIndex,
+                        Unif_KeyRef *pPublicKey,
+                        Unif_KeyRef *pPrivateKey);
+int CCM_GenerateSymKey(void *hSessionHandle,
+                       const Unif_AlgParams *pAlgParams,
+                       unsigned int uiKeyIndex,
+                       Unif_KeyRef *pKey);
+int CCM_ImportKey(void *hSessionHandle,
+                  const Unif_AlgParams *pAlgParams,
+                  const Unif_Buffer *pKeyBlob,
+                  Unif_KeyRef *pKey);
+int CCM_ExportPublicKey(void *hSessionHandle,
+                        const Unif_KeyRef *pKey,
+                        Unif_Buffer *pPublicKeyBlob);
+int CCM_DestroyKey(void *hSessionHandle,
+                   const Unif_KeyRef *pKey);
+int CCM_GetKeyInfo(void *hSessionHandle,
+                   const Unif_KeyRef *pKey,
+                   Unif_Buffer *pKeyInfo);
+int CCM_KemEncapsulate(void *hSessionHandle,
+                       const Unif_AlgParams *pAlgParams,
+                       const Unif_KeyRef *pPublicKey,
+                       Unif_Buffer *pCipherText,
+                       Unif_Buffer *pSharedSecret);
+int CCM_KemDecapsulate(void *hSessionHandle,
+                       const Unif_AlgParams *pAlgParams,
+                       const Unif_KeyRef *pPrivateKey,
+                       const Unif_Buffer *pCipherText,
+                       Unif_Buffer *pSharedSecret);
+int CCM_KeyAgreementInit(void *hSessionHandle,
+                         const Unif_AlgParams *pAlgParams,
+                         const Unif_KeyRef *pSelfPrivateKey,
+                         const Unif_Buffer *pSelfID,
+                         Unif_Buffer *pAgreementData,
+                         Unif_KeyRef *pAgreementHandle);
+int CCM_KeyAgreementComplete(void *hSessionHandle,
+                             const Unif_AlgParams *pAlgParams,
+                             const Unif_KeyRef *pAgreementOrPrivateKey,
+                             const Unif_Buffer *pPeerData,
+                             Unif_Buffer *pSelfData,
+                             Unif_KeyRef *pSessionKey);
+int CCM_HybridKeyAgreement(void *hSessionHandle,
+                           const Unif_AlgParams *pAlgParams,
+                           const Unif_KeyRef *pClassicKey,
+                           const Unif_KeyRef *pPqcKey,
+                           const Unif_Buffer *pPeerData,
+                           Unif_Buffer *pTranscript,
+                           Unif_KeyRef *pSessionKey);
+
+/* 4. Digital signature */
+int CCM_Sign(void *hSessionHandle,
+             const Unif_AlgParams *pAlgParams,
+             const Unif_KeyRef *pPrivateKey,
+             const Unif_Buffer *pData,
+             Unif_Buffer *pSignature);
+int CCM_Verify(void *hSessionHandle,
+               const Unif_AlgParams *pAlgParams,
+               const Unif_KeyRef *pPublicKey,
+               const Unif_Buffer *pData,
+               const Unif_Buffer *pSignature);
+int CCM_SignDigest(void *hSessionHandle,
+                   const Unif_AlgParams *pAlgParams,
+                   const Unif_KeyRef *pPrivateKey,
+                   const Unif_Buffer *pDigest,
+                   Unif_Buffer *pSignature);
+int CCM_VerifyDigest(void *hSessionHandle,
+                     const Unif_AlgParams *pAlgParams,
+                     const Unif_KeyRef *pPublicKey,
+                     const Unif_Buffer *pDigest,
+                     const Unif_Buffer *pSignature);
+int CCM_HybridSign(void *hSessionHandle,
+                   const Unif_AlgParams *pAlgParams,
+                   const Unif_KeyRef *pClassicPrivateKey,
+                   const Unif_KeyRef *pPqcPrivateKey,
+                   const Unif_Buffer *pData,
+                   Unif_Buffer *pSignature);
+int CCM_HybridVerify(void *hSessionHandle,
+                     const Unif_AlgParams *pAlgParams,
+                     const Unif_KeyRef *pClassicPublicKey,
+                     const Unif_KeyRef *pPqcPublicKey,
+                     const Unif_Buffer *pData,
+                     const Unif_Buffer *pSignature);
 
 #ifdef __cplusplus
 }

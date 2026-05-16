@@ -44,13 +44,13 @@ make test
 
 ## CCM 上层接口
 
-新增 `include/ccm.h` / `src/client/api/ccm_api.c`，提供 `CCM_` 前缀的四类上层统一接口。它不是简单把 SAF 函数改名，而是按完整参数面设计：会话句柄、`uiAlgID`、内部索引、外部密钥、IV、输入输出缓冲区、长度指针、`pExParams` 都保留在 C API 中。
+新增 `include/ccm.h` / `src/client/api/ccm_api.c`，提供 `CCM_` 前缀的四类上层统一接口：环境类、密码运算类、密钥管理类、数字签名类。上层不再暴露证书类、消息类、USBKey 类或厂商设备类接口。
 
-密码运算类不再按 `RsaSign`、`Sm2Sign`、`SM9Sign` 等算法名称拆函数，而是按动作分离：`CCM_Sign`、`CCM_Verify`、`CCM_SymEncrypt`、`CCM_AsymEncrypt`、`CCM_KeyEncapsulate`、`CCM_HybridSign` 等。RSA、SM2、SM4、SM3、Dilithium、Kyber/ML-KEM 等通过 `uiAlgID` 自动路由到既有 JSON API 的 `algorithm` 字段。
+新接口统一使用三种结构表达“用什么算法、什么密钥、对什么数据操作”：`Unif_AlgParams` 表达算法、模式、填充、Hash 算法和安全级别；`Unif_KeyRef` 表达内部索引、会话句柄或外部密钥；`Unif_Buffer` 表达输入输出数据。RSA、SM2、SM4、SM3、Dilithium、Kyber/ML-KEM 等仍通过 `uiAlgID` 归一化到既有 JSON API 的 `algorithm` 字段。
 
-证书类和消息类也收敛为统一入口：证书类型、查询类型、消息类型通过参数表达；消息编码/解码通过 `uiMessageType + uiAlgID` 表达 PKCS7/CMS/SM2 类操作。
+分类边界固定为：密码运算类只包含 Hash、MAC、对称加解密、非对称加解密；密钥管理类包含密钥生成、导入导出、销毁查询、KEM、传统密钥协商和混合密钥协商；数字签名类包含普通签名/验签、摘要签名/验签和混合签名/验签。混合密钥协商不再放入“混合密码运算”单独分类，而归入密钥管理类。
 
-当前实现层对接已有 JSON API；如果旧 JSON API 的对应 `domain/action/algorithm` 已经正确工作，CCM 层会把完整 C 参数归一化后路由过去。
+当前实现层对接已有 JSON API；如果旧 JSON API 的对应 `domain/action/algorithm` 已经正确工作，CCM 层会把结构化 C 参数归一化后路由过去。
 
 ## 请求示例
 
