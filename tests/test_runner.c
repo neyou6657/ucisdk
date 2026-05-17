@@ -11,6 +11,12 @@
 #define ASSERT_EQ_INT(a,b) do { if ((a) != (b)) { fprintf(stderr, "ASSERT_EQ_INT failed: %d != %d at %s:%d\n", (a), (b), __FILE__, __LINE__); return 1; } } while (0)
 #define ASSERT_CONTAINS(hay, needle) do { if (strstr((hay), (needle)) == NULL) { fprintf(stderr, "ASSERT_CONTAINS failed: '%s' not in '%s' at %s:%d\n", (needle), (hay), __FILE__, __LINE__); return 1; } } while (0)
 
+#define TRACE_CALL(category, iface, params, expr) do { \
+    int _rc = (expr); \
+    printf("[四类接口测试] 类别=%s | 接口=%s | 参数=%s | 结果=%s(%d)\n", (category), (iface), (params), _rc == 0 ? "成功" : "失败", _rc); \
+    ASSERT_EQ_INT(_rc, 0); \
+} while (0)
+
 static int load_registry(resource_registry_t *registry) {
     char err[128];
     registry_init(registry);
@@ -216,73 +222,85 @@ static int test_ccm_four_category_structured_api_entrypoints(void) {
     iv.pucData = iv_bytes;
     iv.uiDataLen = sizeof(iv_bytes);
 
-    ASSERT_EQ_INT(CCM_Initialize(&ctx), 0);
-    ASSERT_EQ_INT(CCM_GetVersion((char *)out.pucData, &out.uiDataLen), 0);
-    out.uiDataLen = sizeof(out_bytes);
-    ASSERT_EQ_INT(CCM_Login(ctx, "user", "123456"), 0);
-    ASSERT_EQ_INT(CCM_ChangePin(ctx, "123456", "654321"), 0);
-    ASSERT_EQ_INT(CCM_Logout(ctx), 0);
-    ASSERT_EQ_INT(CCM_Finalize(ctx), 0);
-    ASSERT_EQ_INT(CCM_GetCapability(ctx, &out), 0);
-    ASSERT_EQ_INT(CCM_GenerateRandom(ctx, out.uiDataLen, out.pucData), 0);
+    printf("\n========== 四类统一密码服务接口测试 ==========" "\n");
+    printf("说明: 每条记录包含接口类别、接口名称、关键参数和执行结果。\n");
 
+    printf("\n-- 环境类接口 --\n");
+    TRACE_CALL("环境类", "CCM_Initialize", "phContext=&ctx", CCM_Initialize(&ctx));
+    TRACE_CALL("环境类", "CCM_GetVersion", "out=version_buffer,out_len=2048", CCM_GetVersion((char *)out.pucData, &out.uiDataLen));
+    out.uiDataLen = sizeof(out_bytes);
+    TRACE_CALL("环境类", "CCM_Login", "user=user,pin=123456", CCM_Login(ctx, "user", "123456"));
+    TRACE_CALL("环境类", "CCM_ChangePin", "old_pin=123456,new_pin=654321", CCM_ChangePin(ctx, "123456", "654321"));
+    TRACE_CALL("环境类", "CCM_Logout", "session=ctx", CCM_Logout(ctx));
+    TRACE_CALL("环境类", "CCM_Finalize", "context=ctx", CCM_Finalize(ctx));
+    TRACE_CALL("环境类", "CCM_GetCapability", "out=capability_buffer", CCM_GetCapability(ctx, &out));
+    TRACE_CALL("环境类", "CCM_GenerateRandom", "length=2048,out=random_buffer", CCM_GenerateRandom(ctx, out.uiDataLen, out.pucData));
+
+    printf("\n-- 密码运算类接口 --\n");
     alg.uiAlgID = CCM_ALG_SM3;
-    ASSERT_EQ_INT(CCM_Hash(ctx, &alg, &in, &out), 0);
-    ASSERT_EQ_INT(CCM_HashInit(ctx, &alg), 0);
-    ASSERT_EQ_INT(CCM_HashUpdate(ctx, &in), 0);
-    ASSERT_EQ_INT(CCM_HashFinal(ctx, &out), 0);
+    TRACE_CALL("密码运算类", "CCM_Hash", "alg=SM3,data_len=3,out=hash", CCM_Hash(ctx, &alg, &in, &out));
+    TRACE_CALL("密码运算类", "CCM_HashInit", "alg=SM3", CCM_HashInit(ctx, &alg));
+    TRACE_CALL("密码运算类", "CCM_HashUpdate", "data_len=3", CCM_HashUpdate(ctx, &in));
+    TRACE_CALL("密码运算类", "CCM_HashFinal", "out=hash", CCM_HashFinal(ctx, &out));
     alg.uiAlgID = CCM_ALG_SM4_MAC;
     key.uiAlgID = CCM_ALG_SM4_MAC;
     key.uiUsage = CCM_KEY_USAGE_DERIVE;
-    ASSERT_EQ_INT(CCM_Mac(ctx, &alg, &key, &iv, &in, &out), 0);
+    TRACE_CALL("密码运算类", "CCM_Mac", "alg=SM4-MAC,key_index=1,iv_len=16,data_len=3", CCM_Mac(ctx, &alg, &key, &iv, &in, &out));
     alg.uiAlgID = CCM_ALG_SM4_CBC;
     key.uiAlgID = CCM_ALG_SM4_CBC;
     key.uiUsage = CCM_KEY_USAGE_ENCRYPT;
-    ASSERT_EQ_INT(CCM_SymEncrypt(ctx, &alg, &key, &iv, &in, &out), 0);
-    ASSERT_EQ_INT(CCM_SymDecrypt(ctx, &alg, &key, &iv, &in, &out), 0);
+    TRACE_CALL("密码运算类", "CCM_SymEncrypt", "alg=SM4-CBC,key_index=1,iv_len=16,plain_len=3", CCM_SymEncrypt(ctx, &alg, &key, &iv, &in, &out));
+    TRACE_CALL("密码运算类", "CCM_SymDecrypt", "alg=SM4-CBC,key_index=1,iv_len=16,cipher_len=3", CCM_SymDecrypt(ctx, &alg, &key, &iv, &in, &out));
     alg.uiAlgID = CCM_ALG_SM2;
     key.uiAlgID = CCM_ALG_SM2;
     key.uiUsage = CCM_KEY_USAGE_ENCRYPT;
-    ASSERT_EQ_INT(CCM_AsymEncrypt(ctx, &alg, &key, &in, &out), 0);
+    TRACE_CALL("密码运算类", "CCM_AsymEncrypt", "alg=SM2,key_index=1,plain_len=3", CCM_AsymEncrypt(ctx, &alg, &key, &in, &out));
     key.uiUsage = CCM_KEY_USAGE_DECRYPT;
-    ASSERT_EQ_INT(CCM_AsymDecrypt(ctx, &alg, &key, &in, &out), 0);
+    TRACE_CALL("密码运算类", "CCM_AsymDecrypt", "alg=SM2,key_index=1,cipher_len=3", CCM_AsymDecrypt(ctx, &alg, &key, &in, &out));
 
+    printf("\n-- 密钥管理类接口 --\n");
     alg.uiAlgID = CCM_ALG_DILITHIUM3;
     key.uiAlgID = CCM_ALG_DILITHIUM3;
     key.uiUsage = CCM_KEY_USAGE_SIGN;
-    ASSERT_EQ_INT(CCM_GenerateKeyPair(ctx, &alg, 7U, &key, &second_key), 0);
-    ASSERT_EQ_INT(CCM_GenerateSymKey(ctx, &alg, 8U, &key), 0);
-    ASSERT_EQ_INT(CCM_ImportKey(ctx, &alg, &in, &key), 0);
-    ASSERT_EQ_INT(CCM_ExportPublicKey(ctx, &key, &out), 0);
-    ASSERT_EQ_INT(CCM_GetKeyInfo(ctx, &key, &out), 0);
-    ASSERT_EQ_INT(CCM_DestroyKey(ctx, &key), 0);
+    TRACE_CALL("密钥管理类", "CCM_GenerateKeyPair", "alg=DILITHIUM3,key_index=7", CCM_GenerateKeyPair(ctx, &alg, 7U, &key, &second_key));
+    TRACE_CALL("密钥管理类", "CCM_GenerateSymKey", "alg=DILITHIUM3,key_index=8", CCM_GenerateSymKey(ctx, &alg, 8U, &key));
+    TRACE_CALL("密钥管理类", "CCM_ImportKey", "alg=DILITHIUM3,key_blob_len=3,out_key_index=1", CCM_ImportKey(ctx, &alg, &in, &key));
+    TRACE_CALL("密钥管理类", "CCM_ExportPublicKey", "key_alg=DILITHIUM3,key_index=1,out=public_key", CCM_ExportPublicKey(ctx, &key, &out));
+    TRACE_CALL("密钥管理类", "CCM_GetKeyInfo", "key_alg=DILITHIUM3,key_index=1,out=key_info", CCM_GetKeyInfo(ctx, &key, &out));
+    TRACE_CALL("密钥管理类", "CCM_DestroyKey", "key_alg=DILITHIUM3,key_index=1", CCM_DestroyKey(ctx, &key));
     alg.uiAlgID = CCM_ALG_MLKEM768;
     second_key.uiAlgID = CCM_ALG_MLKEM768;
-    ASSERT_EQ_INT(CCM_KemEncapsulate(ctx, &alg, &second_key, &out, &out), 0);
-    ASSERT_EQ_INT(CCM_KemDecapsulate(ctx, &alg, &second_key, &in, &out), 0);
+    second_key.uiUsage = CCM_KEY_USAGE_KEM;
+    TRACE_CALL("密钥管理类", "CCM_KemEncapsulate", "alg=MLKEM768,public_key_index=2,out=ciphertext+shared_secret", CCM_KemEncapsulate(ctx, &alg, &second_key, &out, &out));
+    TRACE_CALL("密钥管理类", "CCM_KemDecapsulate", "alg=MLKEM768,private_key_index=2,ciphertext_len=3,out=shared_secret", CCM_KemDecapsulate(ctx, &alg, &second_key, &in, &out));
     alg.uiAlgID = CCM_ALG_SM2;
-    ASSERT_EQ_INT(CCM_KeyAgreementInit(ctx, &alg, &key, &in, &out, &second_key), 0);
-    ASSERT_EQ_INT(CCM_KeyAgreementComplete(ctx, &alg, &key, &in, &out, &second_key), 0);
+    key.uiAlgID = CCM_ALG_SM2;
+    TRACE_CALL("密钥管理类", "CCM_KeyAgreementInit", "alg=SM2,self_key_index=1,self_id_len=3,out=agreement_data+handle", CCM_KeyAgreementInit(ctx, &alg, &key, &in, &out, &second_key));
+    TRACE_CALL("密钥管理类", "CCM_KeyAgreementComplete", "alg=SM2,agreement_key_index=1,peer_data_len=3,out=session_key", CCM_KeyAgreementComplete(ctx, &alg, &key, &in, &out, &second_key));
     alg.uiAlgID = CCM_ALG_MLKEM768;
-    ASSERT_EQ_INT(CCM_HybridKeyAgreement(ctx, &alg, &key, &second_key, &in, &out, &second_key), 0);
+    TRACE_CALL("密钥管理类", "CCM_HybridKeyAgreement", "alg=MLKEM768,classic_key_index=1,pqc_key_index=2,peer_data_len=3", CCM_HybridKeyAgreement(ctx, &alg, &key, &second_key, &in, &out, &second_key));
 
+    printf("\n-- 数字签名类接口 --\n");
     alg.uiAlgID = CCM_ALG_SM2;
+    key.uiAlgID = CCM_ALG_SM2;
     key.uiUsage = CCM_KEY_USAGE_SIGN;
-    ASSERT_EQ_INT(CCM_Sign(ctx, &alg, &key, &in, &out), 0);
+    TRACE_CALL("数字签名类", "CCM_Sign", "alg=SM2,private_key_index=1,data_len=3,out=signature", CCM_Sign(ctx, &alg, &key, &in, &out));
     key.uiUsage = CCM_KEY_USAGE_VERIFY;
-    ASSERT_EQ_INT(CCM_Verify(ctx, &alg, &key, &in, &out), 0);
-    ASSERT_EQ_INT(CCM_SignDigest(ctx, &alg, &key, &in, &out), 0);
-    ASSERT_EQ_INT(CCM_VerifyDigest(ctx, &alg, &key, &in, &out), 0);
+    TRACE_CALL("数字签名类", "CCM_Verify", "alg=SM2,public_key_index=1,data_len=3,signature_len=2048", CCM_Verify(ctx, &alg, &key, &in, &out));
+    TRACE_CALL("数字签名类", "CCM_SignDigest", "alg=SM2,private_key_index=1,digest_len=3,out=signature", CCM_SignDigest(ctx, &alg, &key, &in, &out));
+    TRACE_CALL("数字签名类", "CCM_VerifyDigest", "alg=SM2,public_key_index=1,digest_len=3,signature_len=2048", CCM_VerifyDigest(ctx, &alg, &key, &in, &out));
     second_key.uiAlgID = CCM_ALG_DILITHIUM3;
     second_key.uiUsage = CCM_KEY_USAGE_SIGN;
-    ASSERT_EQ_INT(CCM_HybridSign(ctx, &alg, &key, &second_key, &in, &out), 0);
+    TRACE_CALL("数字签名类", "CCM_HybridSign", "classic_alg=SM2,pqc_alg=DILITHIUM3,data_len=3,out=hybrid_signature", CCM_HybridSign(ctx, &alg, &key, &second_key, &in, &out));
     second_key.uiUsage = CCM_KEY_USAGE_VERIFY;
-    ASSERT_EQ_INT(CCM_HybridVerify(ctx, &alg, &key, &second_key, &in, &out), 0);
+    TRACE_CALL("数字签名类", "CCM_HybridVerify", "classic_alg=SM2,pqc_alg=DILITHIUM3,data_len=3,signature_len=2048", CCM_HybridVerify(ctx, &alg, &key, &second_key, &in, &out));
+
+    printf("========== 四类统一密码服务接口测试结束 ==========" "\n\n");
     return 0;
 }
 
 int main(void) {
-        if (test_ccm_api_builds_unified_requests_with_algorithm_id() != 0) return 1;
+    if (test_ccm_api_builds_unified_requests_with_algorithm_id() != 0) return 1;
     if (test_ccm_four_category_structured_api_entrypoints() != 0) return 1;
     if (test_protocol_parse() != 0) return 1;
     if (test_gateway_pin_check() != 0) return 1;
