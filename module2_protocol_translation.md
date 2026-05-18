@@ -19,3 +19,5 @@ Server request flow:
 ## key_ref 协议语义
 
 客户端仍只调用 `CCM_*`。封装层把 `Unif_KeyRef` 序列化为 `key_ref`，其中可包含 `source`、`key_index`、`key_handle`、`external_key`、`key_id` 和 `device_id`。协议层不把底层设备 PIN 暴露给客户端；服务端根据 `key_ref` 的 `key_id/device_id/source` 约束后端选择。
+
+示例：托管签名请求中的 `key_ref` 应为 `source=4;key_id=tenant-a-sm2-sign-001`，而不是无归属的 `k1`。

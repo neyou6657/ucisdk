@@ -78,7 +78,7 @@ domain + action + algorithm
 | `domain` | 能力域，例如 device、key、asym、sym、hash、pqc |
 | `action` | 动作，例如 sign、verify、encrypt、decrypt、hash、kem_encap |
 | `algorithm` | 算法变量，例如 sm2、rsa、sm4-cbc、sm3、mlkem768、dilithium3 |
-| `key_ref` | 归一化后的密钥引用 |
+| `key_ref` | 归一化后的密钥引用；可携带 `source/key_id/device_id/key_index/external_key` |
 | `payload` | 主输入参数 |
 | `aux_payload` | 输出、辅助参数或扩展参数 |
 | `device_hint` / `preference` / `sequence` | 多设备调度和混合流程控制字段 |

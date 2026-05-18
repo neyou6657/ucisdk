@@ -32,7 +32,7 @@
 - `domain`：功能域
 - `action`：动作
 - `algorithm`：算法或变种
-- `key_ref`：业务侧密钥引用
+- `key_ref`：业务侧统一密钥引用，可携带 `source/key_id/device_id/key_index/external_key`
 - `payload`：主输入
 - `aux_payload`：辅助输入
 - `user_pin`：网关 PIN
@@ -231,19 +231,19 @@ Adapter 是真正隔离厂商差异的地方。
 ### 7.2 传统密码机签名
 
 ```json
-{"request_id":"r1","domain":"asym","action":"sign","algorithm":"sm2","key_ref":"k1","payload":"hello","user_pin":"123456"}
+{"request_id":"r1","domain":"asym","action":"sign","algorithm":"sm2","key_ref":"source=4;key_id=tenant-a-sm2-sign-001","payload":"hello","user_pin":"123456"}
 ```
 
 ### 7.3 抗量子 KEM 封装
 
 ```json
-{"request_id":"r2","domain":"pqc","action":"kem_encap","algorithm":"mlkem768","key_ref":"k2","payload":"peer_pub","user_pin":"123456"}
+{"request_id":"r2","domain":"pqc","action":"kem_encap","algorithm":"mlkem768","key_ref":"source=4;key_id=tenant-a-mlkem768-001","payload":"peer_pub","user_pin":"123456"}
 ```
 
 ### 7.4 串行混合流程
 
 ```json
-{"request_id":"r3","domain":"asym","action":"sign","algorithm":"sm2","key_ref":"k1","payload":"hello","user_pin":"123456","sequence":"asym:sign:classic:sm2>pqc:sign:pqc:dilithium3"}
+{"request_id":"r3","domain":"asym","action":"sign","algorithm":"sm2","key_ref":"source=4;key_id=tenant-a-sm2-sign-001","payload":"hello","user_pin":"123456","sequence":"asym:sign:classic:sm2>pqc:sign:pqc:dilithium3"}
 ```
 
 ---
