@@ -278,4 +278,8 @@ Adapter 是真正隔离厂商差异的地方。
 
 ## 托管式统一密码服务边界
 
-UCiSDK 定位为托管式统一密码服务平台。上层应用只能通过 `CCM_*` 函数接口提交算法、动作、数据和统一密钥引用；网关 PIN 只用于网关认证，不能当作底层密码机、密码钥匙或软件库 PIN 透传。内部密钥引用必须携带 `device_id` 或由托管 `key_id` 解析到具体设备，不能把裸 `key_index` 当作全局密钥标识。软件库等后端只声明自己支持的 key source 能力，例如外部密钥能力，不支持内部索引密钥时由调度层过滤，adapter 层仅作为最终兜底。
+UCiSDK 是托管式统一密码服务平台，不是把调用方 PIN 透传到底层设备的简单代理。上层调用方只使用 `CCM_*` 函数接口提交算法、动作、数据和统一密钥引用；网关负责认证、密钥归属解析、设备选择和 adapter 调用。网关 PIN 只用于网关侧认证，底层密码机、密码钥匙或软件库所需的登录状态由服务端 adapter 按设备配置和密钥归属处理。
+
+`Unif_KeyRef` 同时支持外部密钥、会话句柄、设备内部索引和托管密钥标识。`uiSource=CCM_KEY_SOURCE_MANAGED_KEY` 时，调用方传入 `szKeyId`，服务端通过密钥注册表解析出真实 `device_id`、容器或内部索引；`uiSource=CCM_KEY_SOURCE_INTERNAL_INDEX` 时，必须通过 `szDeviceId` 或请求中的 `device_hint` 绑定具体设备，裸 `uiKeyIndex` 不能作为全局密钥标识。
+
+调度器先执行网关 PIN 校验，再解析 `key_ref`。内部索引密钥请求必须能解析到具体设备；托管密钥请求由 `key_id` 映射到设备和密钥位置；外部密钥请求可以按能力表自由选择支持外部密钥的后端。设备能力支持三段式 `domain:action:algorithm` 和四段式 `domain:action:algorithm:key_source`，例如软件库可声明 `asym:sign:sm2:external_key`，从而在调度阶段拒绝内部索引密钥。adapter 的不支持返回只作为兜底。
