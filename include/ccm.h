@@ -67,7 +67,8 @@ typedef enum {
     CCM_KEY_SOURCE_NONE = 0,
     CCM_KEY_SOURCE_INTERNAL_INDEX,
     CCM_KEY_SOURCE_SESSION_HANDLE,
-    CCM_KEY_SOURCE_EXTERNAL_KEY
+    CCM_KEY_SOURCE_EXTERNAL_KEY,
+    CCM_KEY_SOURCE_MANAGED_KEY
 } ccm_key_source_t;
 
 typedef enum {
@@ -95,6 +96,8 @@ typedef struct {
     unsigned int uiKeyIndex;
     void *hKeyHandle;
     void *pExternalKey;
+    char szKeyId[64];
+    char szDeviceId[64];
 } Unif_KeyRef;
 
 typedef struct {

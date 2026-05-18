@@ -33,7 +33,8 @@ int registry_find_by_id(resource_registry_t *registry, const char *device_id, de
 int device_supports(const device_resource_t *device,
                     api_domain_t domain,
                     api_action_t action,
-                    const char *algorithm) {
+                    const char *algorithm,
+                    unsigned int key_source) {
     size_t i;
     for (i = 0; i < device->cap_count; ++i) {
         if (device->caps[i].domain != domain) {
@@ -42,9 +43,13 @@ int device_supports(const device_resource_t *device,
         if (device->caps[i].action != action) {
             continue;
         }
-        if (strcmp(device->caps[i].algorithm, algorithm) == 0 || strcmp(device->caps[i].algorithm, "auto") == 0) {
-            return 1;
+        if (!(strcmp(device->caps[i].algorithm, algorithm) == 0 || strcmp(device->caps[i].algorithm, "auto") == 0)) {
+            continue;
         }
+        if (key_source != 0U && (device->caps[i].key_source_mask & (1U << key_source)) == 0U) {
+            continue;
+        }
+        return 1;
     }
     return 0;
 }
@@ -78,6 +83,7 @@ int registry_acquire_candidate(resource_registry_t *registry,
                                api_action_t action,
                                const char *algorithm,
                                const char *device_hint,
+                               unsigned int key_source,
                                preference_t preference,
                                const device_type_t *fallback_order,
                                size_t fallback_len,
@@ -90,7 +96,7 @@ int registry_acquire_candidate(resource_registry_t *registry,
         for (i = 0; i < registry->count; ++i) {
             device_resource_t *d = &registry->devices[i];
             if (strcmp(d->device_id, device_hint) == 0 && d->enabled && d->inflight < d->max_inflight &&
-                device_supports(d, domain, action, algorithm)) {
+                device_supports(d, domain, action, algorithm, key_source)) {
                 d->inflight++;
                 *out = d;
                 pthread_mutex_unlock(&registry->lock);
@@ -109,7 +115,7 @@ int registry_acquire_candidate(resource_registry_t *registry,
             if (!d->enabled) continue;
             if (fallback_order[order_i] != DEV_UNKNOWN && d->type != fallback_order[order_i]) continue;
             if (d->inflight >= d->max_inflight) continue;
-            if (!device_supports(d, domain, action, algorithm)) continue;
+            if (!device_supports(d, domain, action, algorithm, key_source)) continue;
             if (better_candidate(best, d, preference)) {
                 best = d;
             }

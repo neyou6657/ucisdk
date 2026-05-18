@@ -9,10 +9,20 @@ static int parse_bool(const char *s) {
     return strcmp(s, "1") == 0 ? 1 : 0;
 }
 
+static unsigned int key_source_mask_for(const char *s) {
+    if (s == NULL || s[0] == '\0' || strcmp(s, "any") == 0) return 0xffffffffU;
+    if (strcmp(s, "internal_index") == 0 || strcmp(s, "1") == 0) return 1U << 1;
+    if (strcmp(s, "session_handle") == 0 || strcmp(s, "2") == 0) return 1U << 2;
+    if (strcmp(s, "external_key") == 0 || strcmp(s, "3") == 0) return 1U << 3;
+    if (strcmp(s, "managed_key") == 0 || strcmp(s, "4") == 0) return 1U << 4;
+    return 0U;
+}
+
 static int parse_capability(const char *s, capability_t *cap) {
     char tmp[160];
     char *first;
     char *second;
+    char *third;
     snprintf(tmp, sizeof(tmp), "%s", s);
     first = strchr(tmp, ':');
     if (first == NULL) {
@@ -24,6 +34,10 @@ static int parse_capability(const char *s, capability_t *cap) {
         return -1;
     }
     *second = '\0';
+    third = strchr(second + 1, ':');
+    if (third != NULL) {
+        *third = '\0';
+    }
 
     cap->domain = parse_domain(tmp);
     cap->action = parse_action(first + 1);
@@ -33,7 +47,8 @@ static int parse_capability(const char *s, capability_t *cap) {
     if (normalize_algorithm_name(second + 1, cap->algorithm, sizeof(cap->algorithm)) != 0) {
         return -1;
     }
-    return 0;
+    cap->key_source_mask = third == NULL ? 0xffffffffU : key_source_mask_for(third + 1);
+    return cap->key_source_mask == 0U ? -1 : 0;
 }
 
 int load_resources_from_file(const char *path, resource_registry_t *registry, char *errbuf, size_t errbuf_sz) {

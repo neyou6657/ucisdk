@@ -84,6 +84,81 @@ static void build_order(preference_t pref,
     }
 }
 
+
+static int key_ref_get_token(const char *key_ref, const char *name, char *out, size_t out_sz) {
+    char tmp[MAX_FIELD_LEN];
+    char *save = NULL;
+    char *token;
+    size_t name_len;
+
+    if (out == NULL || out_sz == 0U) return -1;
+    out[0] = '\0';
+    if (key_ref == NULL || key_ref[0] == '\0' || name == NULL || name[0] == '\0') return -1;
+
+    snprintf(tmp, sizeof(tmp), "%s", key_ref);
+    name_len = strlen(name);
+    token = strtok_r(tmp, ";", &save);
+    while (token != NULL) {
+        if (strncmp(token, name, name_len) == 0 && token[name_len] == '=') {
+            snprintf(out, out_sz, "%s", token + name_len + 1U);
+            return out[0] == '\0' ? -1 : 0;
+        }
+        token = strtok_r(NULL, ";", &save);
+    }
+    return -1;
+}
+
+static int key_ref_is_internal_index(const char *key_ref) {
+    char source[MAX_FIELD_LEN];
+    if (key_ref_get_token(key_ref, "source", source, sizeof(source)) != 0) return 0;
+    return strcmp(source, "1") == 0 || strcmp(source, "internal_index") == 0;
+}
+
+
+static unsigned int key_ref_source_value(const char *key_ref) {
+    char source[MAX_FIELD_LEN];
+    if (key_ref_get_token(key_ref, "source", source, sizeof(source)) != 0) return 0U;
+    if (strcmp(source, "internal_index") == 0) return 1U;
+    if (strcmp(source, "session_handle") == 0) return 2U;
+    if (strcmp(source, "external_key") == 0) return 3U;
+    if (strcmp(source, "managed_key") == 0) return 4U;
+    if (strcmp(source, "1") == 0) return 1U;
+    if (strcmp(source, "2") == 0) return 2U;
+    if (strcmp(source, "3") == 0) return 3U;
+    if (strcmp(source, "4") == 0) return 4U;
+    return 0U;
+}
+
+static int resolve_device_hint_from_key_ref(const request_t *req,
+                                            const char *key_ref,
+                                            char *effective_hint,
+                                            size_t effective_hint_sz,
+                                            char *errbuf,
+                                            size_t errbuf_sz) {
+    char key_device_id[MAX_FIELD_LEN];
+
+    effective_hint[0] = '\0';
+    if (req->device_hint[0] != '\0') {
+        snprintf(effective_hint, effective_hint_sz, "%s", req->device_hint);
+    }
+    if (!key_ref_is_internal_index(key_ref)) {
+        return 0;
+    }
+    if (key_ref_get_token(key_ref, "device_id", key_device_id, sizeof(key_device_id)) == 0) {
+        if (effective_hint[0] != '\0' && strcmp(effective_hint, key_device_id) != 0) {
+            snprintf(errbuf, errbuf_sz, "internal_index key device_id conflicts with device_hint");
+            return -1;
+        }
+        snprintf(effective_hint, effective_hint_sz, "%s", key_device_id);
+        return 0;
+    }
+    if (effective_hint[0] != '\0') {
+        return 0;
+    }
+    snprintf(errbuf, errbuf_sz, "internal_index key requires device_id or device_hint");
+    return -1;
+}
+
 static int execute_single_step(scheduler_t *scheduler,
                                const request_t *req,
                                api_domain_t domain,
@@ -101,7 +176,13 @@ static int execute_single_step(scheduler_t *scheduler,
     size_t order_len = 0;
     translated_call_t translated;
     driver_ops_t ops;
-    const char *device_hint = (explicit_type == DEV_UNKNOWN) ? req->device_hint : "";
+    char effective_device_hint[MAX_FIELD_LEN];
+    const char *device_hint;
+
+    if (resolve_device_hint_from_key_ref(req, key_ref, effective_device_hint, sizeof(effective_device_hint), errbuf, errbuf_sz) != 0) {
+        return -1;
+    }
+    device_hint = (effective_device_hint[0] != '\0') ? effective_device_hint : ((explicit_type == DEV_UNKNOWN) ? req->device_hint : "");
 
     build_order(req->preference, explicit_type, order, &order_len);
     if (registry_acquire_candidate(scheduler->registry,
@@ -109,6 +190,7 @@ static int execute_single_step(scheduler_t *scheduler,
                                    action,
                                    algorithm,
                                    device_hint,
+                                   key_ref_source_value(key_ref),
                                    req->preference,
                                    order,
                                    order_len,

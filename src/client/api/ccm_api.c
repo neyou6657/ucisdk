@@ -144,6 +144,14 @@ static int append_key_ref(char *key_ref, size_t key_ref_sz, const Unif_KeyRef *p
     if (append_token(key_ref, key_ref_sz, "key_index", pKey->uiKeyIndex) != CCM_OK) return CCM_ERR_BUFFER_TOO_SMALL;
     if (append_ptr(key_ref, key_ref_sz, "key_handle", pKey->hKeyHandle) != CCM_OK) return CCM_ERR_BUFFER_TOO_SMALL;
     if (append_ptr(key_ref, key_ref_sz, "external_key", pKey->pExternalKey) != CCM_OK) return CCM_ERR_BUFFER_TOO_SMALL;
+    if (pKey->szKeyId[0] != '\0') {
+        if (append_raw(key_ref, key_ref_sz, &((size_t){strlen(key_ref)}), key_ref[0] ? ";key_id=" : "key_id=") != CCM_OK) return CCM_ERR_BUFFER_TOO_SMALL;
+        if (append_raw(key_ref, key_ref_sz, &((size_t){strlen(key_ref)}), pKey->szKeyId) != CCM_OK) return CCM_ERR_BUFFER_TOO_SMALL;
+    }
+    if (pKey->szDeviceId[0] != '\0') {
+        if (append_raw(key_ref, key_ref_sz, &((size_t){strlen(key_ref)}), key_ref[0] ? ";device_id=" : "device_id=") != CCM_OK) return CCM_ERR_BUFFER_TOO_SMALL;
+        if (append_raw(key_ref, key_ref_sz, &((size_t){strlen(key_ref)}), pKey->szDeviceId) != CCM_OK) return CCM_ERR_BUFFER_TOO_SMALL;
+    }
     return CCM_OK;
 }
 

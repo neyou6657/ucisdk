@@ -7,6 +7,7 @@ typedef struct {
     api_domain_t domain;
     api_action_t action;
     char algorithm[MAX_FIELD_LEN];
+    unsigned int key_source_mask;
 } capability_t;
 
 typedef struct {
@@ -37,6 +38,7 @@ int registry_acquire_candidate(resource_registry_t *registry,
                                api_action_t action,
                                const char *algorithm,
                                const char *device_hint,
+                               unsigned int key_source,
                                preference_t preference,
                                const device_type_t *fallback_order,
                                size_t fallback_len,
@@ -45,6 +47,7 @@ void registry_release(resource_registry_t *registry, const char *device_id);
 int device_supports(const device_resource_t *device,
                     api_domain_t domain,
                     api_action_t action,
-                    const char *algorithm);
+                    const char *algorithm,
+                    unsigned int key_source);
 
 #endif

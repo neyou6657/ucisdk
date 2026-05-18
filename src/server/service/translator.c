@@ -36,6 +36,7 @@ static const translation_rule_t g_rules[] = {
     {"swsds-classic", DEV_CLASSIC, DOMAIN_KEY,    ACTION_EXPORT_PUBLIC_KEY,         "sm2",        "SDF_ExportSignPublicKey_ECC"},
     {"swsds-classic", DEV_CLASSIC, DOMAIN_KEY,    ACTION_IMPORT_KEY,                "auto",       "SDF_ImportKey"},
     {"swsds-classic", DEV_CLASSIC, DOMAIN_KEY,    ACTION_DESTROY_KEY,               "auto",       "SDF_DestroyKey"},
+    {"softlib",       DEV_CLASSIC, DOMAIN_ASYM,   ACTION_SIGN,                      "sm2",        "SoftLib_SM2Sign"},
     {"swsds-classic", DEV_CLASSIC, DOMAIN_ASYM,   ACTION_SIGN,                      "sm2",        "SDF_InternalSign_ECC_Ex"},
     {"swsds-classic", DEV_CLASSIC, DOMAIN_ASYM,   ACTION_VERIFY,                    "sm2",        "SDF_InternalVerify_ECC_Ex"},
     {"swsds-classic", DEV_CLASSIC, DOMAIN_ASYM,   ACTION_ENCRYPT,                   "sm2",        "SDF_InternalEncrypt_ECC"},

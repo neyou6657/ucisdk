@@ -168,6 +168,77 @@ static int test_bad_pin(void) {
     return 0;
 }
 
+
+static int test_internal_index_requires_device_binding(void) {
+    resource_registry_t registry;
+    gateway_settings_t gw;
+    scheduler_t scheduler;
+    request_t req;
+    response_t resp;
+    char err[128];
+
+    ASSERT_EQ_INT(load_registry(&registry), 0);
+    ASSERT_EQ_INT(load_gateway(&gw), 0);
+    scheduler_init(&scheduler, &registry, &gw);
+    ASSERT_EQ_INT(parse_request_json("{\"request_id\":\"key-bind-1\",\"domain\":\"asym\",\"action\":\"sign\",\"algorithm\":\"sm2\",\"key_ref\":\"source=1;key_index=1\",\"payload\":\"hello\",\"user_pin\":\"123456\"}", &req, err, sizeof(err)), 0);
+    ASSERT_TRUE(scheduler_execute(&scheduler, &req, &resp) != 0);
+    ASSERT_CONTAINS(resp.result, "internal_index key requires device_id or device_hint");
+    return 0;
+}
+
+static int test_internal_key_device_id_overrides_preference(void) {
+    resource_registry_t registry;
+    gateway_settings_t gw;
+    scheduler_t scheduler;
+    request_t req;
+    response_t resp;
+    char err[128];
+
+    ASSERT_EQ_INT(load_registry(&registry), 0);
+    ASSERT_EQ_INT(load_gateway(&gw), 0);
+    scheduler_init(&scheduler, &registry, &gw);
+    ASSERT_EQ_INT(parse_request_json("{\"request_id\":\"key-bind-2\",\"domain\":\"hash\",\"action\":\"hash\",\"algorithm\":\"sm3\",\"key_ref\":\"source=1;key_index=7;device_id=pqc-1\",\"payload\":\"abc\",\"user_pin\":\"123456\",\"preference\":\"classic_first\"}", &req, err, sizeof(err)), 0);
+    ASSERT_EQ_INT(scheduler_execute(&scheduler, &req, &resp), 0);
+    ASSERT_TRUE(strcmp(resp.selected_device, "pqc-1") == 0);
+    return 0;
+}
+
+
+static int test_external_only_device_rejects_internal_key_before_adapter(void) {
+    resource_registry_t registry;
+    gateway_settings_t gw;
+    scheduler_t scheduler;
+    request_t req;
+    response_t resp;
+    char err[128];
+
+    ASSERT_EQ_INT(load_registry(&registry), 0);
+    ASSERT_EQ_INT(load_gateway(&gw), 0);
+    scheduler_init(&scheduler, &registry, &gw);
+    ASSERT_EQ_INT(parse_request_json("{\"request_id\":\"softlib-1\",\"domain\":\"asym\",\"action\":\"sign\",\"algorithm\":\"sm2\",\"key_ref\":\"source=1;key_index=1\",\"payload\":\"hello\",\"user_pin\":\"123456\",\"device_hint\":\"softlib-1\"}", &req, err, sizeof(err)), 0);
+    ASSERT_TRUE(scheduler_execute(&scheduler, &req, &resp) != 0);
+    ASSERT_CONTAINS(resp.result, "no available device matches");
+    return 0;
+}
+
+
+static int test_external_key_can_route_to_external_only_softlib(void) {
+    resource_registry_t registry;
+    gateway_settings_t gw;
+    scheduler_t scheduler;
+    request_t req;
+    response_t resp;
+    char err[128];
+
+    ASSERT_EQ_INT(load_registry(&registry), 0);
+    ASSERT_EQ_INT(load_gateway(&gw), 0);
+    scheduler_init(&scheduler, &registry, &gw);
+    ASSERT_EQ_INT(parse_request_json("{\"request_id\":\"softlib-2\",\"domain\":\"asym\",\"action\":\"sign\",\"algorithm\":\"sm2\",\"key_ref\":\"source=3;external_key=0x1234\",\"payload\":\"hello\",\"user_pin\":\"123456\",\"device_hint\":\"softlib-1\"}", &req, err, sizeof(err)), 0);
+    ASSERT_EQ_INT(scheduler_execute(&scheduler, &req, &resp), 0);
+    ASSERT_TRUE(strcmp(resp.selected_device, "softlib-1") == 0);
+    return 0;
+}
+
 static void make_unif_inputs(Unif_AlgParams *alg, Unif_KeyRef *key, Unif_Buffer *in, Unif_Buffer *out, unsigned char *data, unsigned int data_len, unsigned char *buf, unsigned int buf_len) {
     memset(alg, 0, sizeof(*alg));
     alg->uiAlgID = CCM_ALG_SM2;
@@ -302,6 +373,10 @@ static int test_ccm_four_category_structured_api_entrypoints(void) {
 int main(void) {
     if (test_ccm_api_builds_unified_requests_with_algorithm_id() != 0) return 1;
     if (test_ccm_four_category_structured_api_entrypoints() != 0) return 1;
+    if (test_internal_index_requires_device_binding() != 0) return 1;
+    if (test_internal_key_device_id_overrides_preference() != 0) return 1;
+    if (test_external_only_device_rejects_internal_key_before_adapter() != 0) return 1;
+    if (test_external_key_can_route_to_external_only_softlib() != 0) return 1;
     if (test_protocol_parse() != 0) return 1;
     if (test_gateway_pin_check() != 0) return 1;
     if (test_classic_asym_sign() != 0) return 1;
